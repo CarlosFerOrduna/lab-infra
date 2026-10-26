@@ -1,3 +1,5 @@
+#Requires -RunAsAdministrator
+
 # crear-vm.ps1
 # Crea una VM del lab a partir de la imagen base. Es idempotente.
 param(
