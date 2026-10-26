@@ -16,6 +16,11 @@ resource "github_repository" "repo" {
   has_projects = true
   has_wiki     = false
 
+  allow_merge_commit     = false
+  allow_squash_merge     = false
+  allow_rebase_merge     = true
+  delete_branch_on_merge = true
+
   security_and_analysis {
     secret_scanning {
       status = "enabled"
