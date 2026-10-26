@@ -16,18 +16,3 @@ resource "github_repository" "repo" {
   has_projects = true
   has_wiki     = false
 }
-
-moved {
-  from = github_repository.lab_infra
-  to   = github_repository.repo["lab-infra"]
-}
-
-moved {
-  from = github_repository.lab_gitops
-  to   = github_repository.repo["lab-gitops"]
-}
-
-moved {
-  from = github_repository.lab_ci_workflows
-  to   = github_repository.repo["lab-ci-workflows"]
-}
