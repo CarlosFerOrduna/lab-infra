@@ -1,0 +1,25 @@
+name: lint
+
+on:
+    pull_request:
+
+permissions:
+    contents: read
+
+jobs:
+    powershell:
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Check out the repository
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Install PSScriptAnalyzer
+              shell: pwsh
+              run: |
+                  Set-PSRepository PSGallery -InstallationPolicy Trusted
+                  Install-Module PSScriptAnalyzer -RequiredVersion 1.23.0 -Scope CurrentUser
+
+            - name: Analyze the PowerShell script
+              shell: pwsh
+              run: |
+                  Invoke-ScriptAnalyzer -Path ./hyperv -Recurse -Settings ./PSScriptAnalyzerSettings.psd1 -EnableExit
