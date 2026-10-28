@@ -50,3 +50,5 @@ if (-not $ipAddresses) {
 }
 
 Write-Host "Done: VM '$Name' is reachable at $ipAddresses"
+
+gci C:\Lab\vms
