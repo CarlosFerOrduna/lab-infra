@@ -18,3 +18,28 @@
       group: root
       mode: "0440"
       validate: /usr/sbin/visudo -cf %s
+
+- name: Set the hostname from the inventory
+  ansible.builtin.hostname:
+      name: "{{ inventory_hostname }}"
+
+- name: Install the base packages
+  ansible.builtin.apt:
+      name:
+          - curl
+          - ca-certificates
+          - jq
+      state: present
+      update_cache: true
+      cache_valid_time: 3600
+
+- name: Keep security updates enabled
+  ansible.builtin.apt:
+      name: unattended-upgrades
+      state: present
+
+- name: Keep the security updates service running
+  ansible.builtin.service:
+      name: unattended-upgrades
+      enabled: true
+      state: started
