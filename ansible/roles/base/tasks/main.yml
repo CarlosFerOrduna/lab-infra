@@ -23,6 +23,12 @@
   ansible.builtin.hostname:
       name: "{{ inventory_hostname }}"
 
+- name: Resolve the hostname locally
+  ansible.builtin.lineinfile:
+      path: /etc/hosts
+      regexp: '^127\.0\.1\.1\s'
+      line: "127.0.1.1 {{ inventory_hostname }}"
+
 - name: Install the base packages
   ansible.builtin.apt:
       name:
@@ -43,3 +49,45 @@
       name: unattended-upgrades
       enabled: true
       state: started
+
+- name: Turn off swap now
+  ansible.builtin.command: swapoff -a
+  when: ansible_facts['swaptotal_mb'] > 0
+
+- name: Keep swap off after reboots
+  ansible.builtin.replace:
+      path: /etc/fstab
+      regexp: '^([^#].*\sswap\s.*)$'
+      replace: '# \1'
+
+- name: Remove the swap file
+  ansible.builtin.file:
+      path: /swap.img
+      state: absent
+
+- name: Load the kernel modules at boot
+  ansible.builtin.copy:
+      dest: /etc/modules-load.d/kubernetes.conf
+      content: "overlay\nbr_netfilter\n"
+      owner: root
+      group: root
+      mode: "0644"
+
+- name: Load the kernel modules now
+  community.general.modprobe:
+      name: "{{ item }}"
+      state: present
+  loop:
+      - overlay
+      - br_netfilter
+
+- name: Set the kernel parameters for Kubernetes networking
+  ansible.posix.sysctl:
+      name: "{{ item }}"
+      value: "1"
+      sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+      reload: true
+  loop:
+      - net.bridge.bridge-nf-call-iptables
+      - net.bridge.bridge-nf-call-ip6tables
+      - net.ipv4.ip_forward
