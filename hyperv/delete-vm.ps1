@@ -1,9 +1,11 @@
 #Requires -RunAsAdministrator
 
 # delete-vm.ps1
-# Stops and deletes a lab VM and its disk. Idempotent.
+# Stops and deletes a lab VM, its disk and its cloud-init seed disk. Idempotent.
 param(
-    [string]$Name     = "lab",
+    [Parameter(Mandatory)]
+    [string]$Name,
+
     [string]$VmFolder = "C:\Lab\vms"
 )
 
@@ -22,9 +24,11 @@ if ($vm) {
     Write-Host "VM '$Name' does not exist."
 }
 
-# 2. The disk: delete it if it exists
-$diskPath = Join-Path $VmFolder "$Name.vhdx"
-if (Test-Path $diskPath) {
-    Remove-Item $diskPath
-    Write-Host "Disk $diskPath deleted."
+# 2. The disks: delete them if they exist
+foreach ($diskName in "$Name.vhdx", "$Name-seed.vhdx") {
+    $diskPath = Join-Path $VmFolder $diskName
+    if (Test-Path $diskPath) {
+        Remove-Item $diskPath
+        Write-Host "Disk $diskPath deleted."
+    }
 }
