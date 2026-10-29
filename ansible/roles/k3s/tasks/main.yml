@@ -1,0 +1,39 @@
+- name: Create the k3s config directory
+  ansible.builtin.file:
+      path: /etc/rancher/k3s
+      state: directory
+      owner: root
+      group: root
+      mode: "0755"
+
+- name: Write the k3s config
+  ansible.builtin.copy:
+      dest: /etc/rancher/k3s/config.yaml
+      content: |
+          write-kubeconfig-mode: "0600"
+          tls-san:
+            - {{ ansible_host }}
+      owner: root
+      group: root
+      mode: "0600"
+  notify: Restart k3s
+
+- name: Read the installed k3s version
+  ansible.builtin.command: k3s --version
+  register: k3s_installed
+  changed_when: false
+  failed_when: false
+
+- name: Download the k3s install script for this version
+  ansible.builtin.get_url:
+      url: "https://raw.githubusercontent.com/k3s-io/k3s/{{ k3s_version | urlencode }}/install.sh"
+      dest: /usr/local/bin/k3s-install.sh
+      owner: root
+      group: root
+      mode: "0755"
+
+- name: Install k3s
+  ansible.builtin.command: /usr/local/bin/k3s-install.sh
+  environment:
+      INSTALL_K3S_VERSION: "{{ k3s_version }}"
+  when: k3s_version not in k3s_installed.stdout | default('')
