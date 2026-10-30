@@ -8,8 +8,9 @@ Today:
 
 - PowerShell scripts that create and delete lab VMs on Hyper-V from a generalized base image. Each VM gets its hostname, IP, SSH host keys and automation user on first boot through cloud-init.
 - An Ansible playbook that configures the base system and installs a single-node k3s cluster.
+- One command that rebuilds a VM and its cluster.
 
-Next: one command that rebuilds a VM and its cluster, and a bastion VM that operates the cluster.
+Next: a bastion VM that operates the cluster.
 
 ## How it fits together
 
@@ -26,6 +27,8 @@ Windows host (Hyper-V)                         WSL (control node)
 - **Ansible** declares the full state of the system and keeps it that way.
 
 ## Capacity and hardware
+
+What a machine needs to replicate the lab. The figures are estimates with some headroom; only the k3s baseline below is measured.
 
 ### Host requirements
 
@@ -150,7 +153,7 @@ The version is part of the file name. A new version never overwrites the previou
 
 ## Hyper-V VM scripts
 
-Both scripts live in `hyperv/`, run on Windows in an elevated Windows PowerShell 5.1 (`#Requires -RunAsAdministrator`) and are idempotent: running them twice leaves the host in the same state. From WSL's copy of the repo:
+The scripts live in `hyperv/` and run on Windows in an elevated Windows PowerShell 5.1 (`#Requires -RunAsAdministrator`). `create-vm.ps1` and `delete-vm.ps1` are idempotent: running them twice leaves the host in the same state. `rebuild-vm.ps1` is not, on purpose: every run destroys the VM and creates a new one. From WSL's copy of the repo:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File \\wsl.localhost\Ubuntu\home\<user>\lab\lab-infra\hyperv\create-vm.ps1 -Name lab-vm -IpAddress 192.168.100.10
@@ -240,16 +243,32 @@ kubectl get nodes
 
 ## Rebuilding a VM and its cluster
 
-Until the one-command script exists:
+One command, from an elevated Windows PowerShell:
 
 ```powershell
-.\hyperv\delete-vm.ps1 -Name lab-vm
-.\hyperv\create-vm.ps1 -Name lab-vm -IpAddress 192.168.100.10
+powershell -ExecutionPolicy Bypass -File \\wsl.localhost\Ubuntu\home\<user>\lab\lab-infra\hyperv\rebuild-vm.ps1 -Name lab-vm
 ```
 
+| Parameter   | Default  | Description                                    |
+| ----------- | -------- | ---------------------------------------------- |
+| `-Name`     | required | Inventory hostname of the VM to rebuild.       |
+| `-CpuCount` | `4`      | Virtual processors, passed to `create-vm.ps1`. |
+| `-Memory`   | `8GB`    | Startup memory, passed to `create-vm.ps1`.     |
+
+What it does:
+
+1. Finds the WSL distribution and the `ansible/` folder from its own `\\wsl.localhost` path, so Ansible runs in the same clone. It fails if run from a copy outside WSL.
+2. Reads the VM's IP from the inventory with `ansible-inventory --host`: the inventory is the single source of truth. It fails before deleting anything if the host is not in the inventory.
+3. Runs `delete-vm.ps1` and `create-vm.ps1`.
+4. Forgets the old SSH host keys of that IP in WSL.
+5. Waits with `wait_for_connection` until SSH accepts the automation user, trusting the new host key on first use (`StrictHostKeyChecking=accept-new`). A key that changes afterwards is still rejected.
+6. Runs `ansible-playbook site.yml --limit <Name>`.
+
+Commands in WSL run through a login shell (`bash -lc`), so tools installed with pipx are on the `PATH`, and their exit codes are checked: a failing step stops the script.
+
+Then:
+
 ```bash
-ssh-keygen -R 192.168.100.10
-cd ansible && ansible-playbook site.yml
 kubectl get nodes
 ```
 
