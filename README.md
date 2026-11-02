@@ -9,9 +9,9 @@ Today:
 - PowerShell scripts that create and delete lab VMs on Hyper-V from a generalized base image. Each VM gets its hostname, IP, SSH host keys and automation user on first boot through cloud-init.
 - An Ansible playbook that configures the base system and installs a single-node k3s cluster.
 - One command that rebuilds a VM and its cluster.
-- A bastion VM with `kubectl` and the cluster's kubeconfig, for the people who operate the cluster.
+- A bastion VM with `kubectl` and the cluster's kubeconfig, for the people who operate the cluster, and the jump host to the cluster nodes.
 
-Next: SSH aliases and the bastion as a jump host.
+Next: one cluster per environment (dev, stage and prod).
 
 ## How it fits together
 
@@ -248,13 +248,38 @@ kubectl get nodes
 
 People operate the cluster from the bastion, with the operator account (`ops`, `bastion_user` in `group_vars/bastions.yml`) and a personal key. The automation user is only for Ansible.
 
-```bash
-ssh -i ~/.ssh/id_ed25519 ops@192.168.100.5 kubectl get nodes
-```
-
 - The bastion copies the kubeconfig from the first host in `k3s_servers`, so build the cluster first.
 - Rebuilding the cluster creates new credentials: refresh the bastion's copy with `ansible-playbook site.yml --limit bastions`.
 - That kubeconfig is the cluster's admin credential: it stays on the bastion with mode `0600` and is never committed. Per-user access with RBAC comes later.
+
+### SSH access
+
+In the real platform only the bastion is reachable from the people's network, and the cluster nodes are reached **through** it as a jump host. The lab reproduces that with `ProxyJump` in `~/.ssh/config` on WSL (it lives outside the repository):
+
+```
+Host lab-bastion
+    HostName 192.168.100.5
+    User ops
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+
+Host lab-vm
+    HostName 192.168.100.10
+    User labadmin
+    IdentityFile ~/.ssh/id_ed25519
+    IdentitiesOnly yes
+    ProxyJump lab-bastion
+```
+
+```bash
+ssh lab-bastion kubectl get nodes   # operate the cluster from the bastion
+ssh lab-vm                          # a cluster node, through the bastion
+```
+
+- `ProxyJump` opens an SSH connection to the bastion and tunnels the second connection through it: authentication happens end to end with the personal key, which never leaves WSL (no agent forwarding, no keys on the bastion).
+- `IdentitiesOnly yes` offers only the configured key, not every key in `~/.ssh`.
+- On the nodes, people use the base image's admin user (`labadmin` here) with their personal key, never the automation user.
+- In the lab every VM is still reachable from WSL, and Ansible connects to each one directly. Where only the bastion is reachable, Ansible would go through it too, with `ansible_ssh_common_args: "-o ProxyJump=<bastion>"` in the inventory.
 
 ## Rebuilding a VM and its cluster
 
