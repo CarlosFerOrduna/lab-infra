@@ -227,10 +227,10 @@ ansible-playbook site.yml
 
 A VM created by `create-vm.ps1` is ready for this from its first boot: the `ansible` user and its key come from cloud-init.
 
-| Role   | What it declares                                                                                                                                                                                                                                                   |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `base` | The automation user, its key and `sudo` rule; the hostname; base packages; unattended security upgrades; swap off; the kernel modules and parameters Kubernetes needs; a `ufw` firewall that allows only SSH, the Kubernetes API and the pod and service networks. |
-| `k3s`  | k3s at a pinned version (`k3s_version` in the role defaults), its config file, and the kubeconfig copied to the control node as `~/.kube/<host>.yaml`, pointing to the VM's IP.                                                                                    |
+| Role   | What it declares                                                                                                                                                                                                                                                                                                                 |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base` | The automation user, its key and `sudo` rule; the hostname; base packages; unattended security upgrades; a `ufw` firewall that denies incoming traffic by default and allows only SSH.                                                                                                                                           |
+| `k3s`  | The Kubernetes prerequisites (swap off, the kernel modules and parameters, `ufw` rules for the Kubernetes API and the pod and service networks); k3s at a pinned version (`k3s_version` in the role defaults), its config file, and the kubeconfig copied to the control node as `~/.kube/<host>.yaml`, pointing to the VM's IP. |
 
 Ubuntu 26.04 ships `sudo-rs` as `sudo`, and Ansible times out waiting for its prompt. `ansible.cfg` sets `become_exe = sudo.ws` to use the classic `sudo` until Ansible supports `sudo-rs`.
 
