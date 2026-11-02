@@ -59,7 +59,7 @@ Each VM gets a full copy of the base image (no differencing disks), so a VM star
 
 ### What competes for the host's memory
 
-Windows itself, WSL (by default it may take up to half of the host's RAM; cap it with `memory=` in `.wslconfig`), Docker Desktop and the browser. Check the host before adding a VM: if Windows starts paging, lower the VM's `-Memory` or stop a VM.
+Windows itself, WSL (by default it may take up to half of the host's RAM; cap it with `memory=` in `.wslconfig`), Docker Desktop and the browser. Check the host before adding a VM: if Windows starts paging, lower the VM's `vm_memory_gb` in the inventory and rebuild it, or stop a VM.
 
 ## Host setup (once)
 
@@ -249,16 +249,14 @@ One command, from an elevated Windows PowerShell:
 powershell -ExecutionPolicy Bypass -File \\wsl.localhost\Ubuntu\home\<user>\lab\lab-infra\hyperv\rebuild-vm.ps1 -Name lab-vm
 ```
 
-| Parameter   | Default  | Description                                    |
-| ----------- | -------- | ---------------------------------------------- |
-| `-Name`     | required | Inventory hostname of the VM to rebuild.       |
-| `-CpuCount` | `4`      | Virtual processors, passed to `create-vm.ps1`. |
-| `-Memory`   | `8GB`    | Startup memory, passed to `create-vm.ps1`.     |
+| Parameter | Default  | Description                              |
+| --------- | -------- | ---------------------------------------- |
+| `-Name`   | required | Inventory hostname of the VM to rebuild. |
 
 What it does:
 
 1. Finds the WSL distribution and the `ansible/` folder from its own `\\wsl.localhost` path, so Ansible runs in the same clone. It fails if run from a copy outside WSL.
-2. Reads the VM's IP from the inventory with `ansible-inventory --host`: the inventory is the single source of truth. It fails before deleting anything if the host is not in the inventory.
+2. Reads the VM's IP (`ansible_host`) and size (`vm_cpus`, `vm_memory_gb`) from the inventory with `ansible-inventory --host`: the inventory is the single source of truth. The default size lives in `group_vars/all.yml`; override it per host in `hosts.yml`. It fails before deleting anything if the host is not in the inventory or any of those variables is missing.
 3. Runs `delete-vm.ps1` and `create-vm.ps1`.
 4. Forgets the old SSH host keys of that IP in WSL.
 5. Waits with `wait_for_connection` until SSH accepts the automation user, trusting the new host key on first use (`StrictHostKeyChecking=accept-new`). A key that changes afterwards is still rejected.

@@ -7,10 +7,7 @@
 # Ansible runs in that same clone.
 param(
     [Parameter(Mandatory)]
-    [string]$Name,
-
-    [int] $CpuCount = 4,
-    [long]$Memory   = 8GB
+    [string]$Name
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,17 +28,19 @@ function Invoke-Wsl([string]$Command) {
     }
 }
 
-# 2. The inventory is the source of truth for the VM's IP
+# 2. The inventory is the source of truth for the VM's IP and size
 Write-Host "Reading '$Name' from the Ansible inventory ..."
 $hostVars  = (Invoke-Wsl "ansible-inventory --host '$Name'") -join "`n" | ConvertFrom-Json
 $ipAddress = $hostVars.ansible_host
-if (-not $ipAddress) {
-    throw "'$Name' has no ansible_host in the inventory."
+$cpuCount  = $hostVars.vm_cpus
+$memoryGb  = $hostVars.vm_memory_gb
+if (-not $ipAddress -or -not $cpuCount -or -not $memoryGb) {
+    throw "'$Name' needs ansible_host, vm_cpus and vm_memory_gb in the inventory."
 }
 
 # 3. Delete and create the VM
 & (Join-Path $PSScriptRoot "delete-vm.ps1") -Name $Name
-& (Join-Path $PSScriptRoot "create-vm.ps1") -Name $Name -IpAddress $ipAddress -CpuCount $CpuCount -Memory $Memory
+& (Join-Path $PSScriptRoot "create-vm.ps1") -Name $Name -IpAddress $ipAddress -CpuCount $cpuCount -Memory ([long]$memoryGb * 1GB)
 
 # 4. The new VM has new SSH host keys: forget the old ones
 Invoke-Wsl "ssh-keygen -R '$ipAddress' > /dev/null 2>&1 || true"
