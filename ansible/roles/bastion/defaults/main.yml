@@ -1,0 +1,5 @@
+# kubectl supports one minor version of skew with the API server: use the cluster's.
+kubectl_minor: "{{ k3s_version | regex_search('^v[0-9]+[.][0-9]+') }}"
+
+# Cluster node the kubeconfig is copied from.
+bastion_cluster_node: "{{ groups['k3s_servers'] | first }}"

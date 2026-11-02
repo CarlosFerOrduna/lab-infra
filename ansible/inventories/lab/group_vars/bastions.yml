@@ -1,0 +1,4 @@
+# Account for the people who operate the clusters from the bastion.
+# The automation user (ansible) is only for Ansible.
+bastion_user: ops
+bastion_user_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEoUZT7mdMXbRzGAUfpX35vVNgxd3GOOTF6W1aJtU7Uj wsl-lab"

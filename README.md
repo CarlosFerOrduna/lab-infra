@@ -9,17 +9,19 @@ Today:
 - PowerShell scripts that create and delete lab VMs on Hyper-V from a generalized base image. Each VM gets its hostname, IP, SSH host keys and automation user on first boot through cloud-init.
 - An Ansible playbook that configures the base system and installs a single-node k3s cluster.
 - One command that rebuilds a VM and its cluster.
+- A bastion VM with `kubectl` and the cluster's kubeconfig, for the people who operate the cluster.
 
-Next: a bastion VM that operates the cluster.
+Next: SSH aliases and the bastion as a jump host.
 
 ## How it fits together
 
 ```
 Windows host (Hyper-V)                         WSL (control node)
   hyperv/create-vm.ps1                           ansible/site.yml
-    base image + seed disk (cloud-init)  --->      roles: base, k3s
+    base image + seed disk (cloud-init)  --->      roles: base, k3s, bastion
     = VM with name, IP and the ansible user        = configured VM + k3s
                                                    + ~/.kube/<host>.yaml
+                                                   = bastion with kubectl
 ```
 
 - **Hyper-V scripts** play the role of IT: they hand over a VM that is reachable over SSH by the automation user, and nothing else.
@@ -32,19 +34,19 @@ What a machine needs to replicate the lab. The figures are estimates with some h
 
 ### Host requirements
 
-| Resource | Current stage (one VM)                          | Full lab (three clusters and a bastion) |
-| -------- | ----------------------------------------------- | --------------------------------------- |
-| OS       | Windows 10/11 Pro or Enterprise (Hyper-V)       | Same                                    |
-| CPU      | 4 cores with virtualization enabled in firmware | 8 cores or more                         |
-| RAM      | 16 GB (8 GB for the VM, the rest for the host)  | 32 GB                                   |
-| Disk     | SSD with 60 GB free                             | SSD with 150 GB free                    |
+| Resource | Current stage (one cluster and a bastion)        | Full lab (three clusters and a bastion) |
+| -------- | ------------------------------------------------ | --------------------------------------- |
+| OS       | Windows 10/11 Pro or Enterprise (Hyper-V)        | Same                                    |
+| CPU      | 4 cores with virtualization enabled in firmware  | 8 cores or more                         |
+| RAM      | 16 GB (10 GB for the VMs, the rest for the host) | 32 GB                                   |
+| Disk     | SSD with 80 GB free                              | SSD with 150 GB free                    |
 
 ### VM sizing
 
 | VM                                                | vCPU | RAM  | Notes                                             |
 | ------------------------------------------------- | ---- | ---- | ------------------------------------------------- |
 | `lab-vm` (single-node k3s, later the dev cluster) | 4    | 8 GB | Hosts the apps, Kafka, ArgoCD and the CI runners. |
-| bastion (planned)                                 | 2    | 2 GB | Tools only, no cluster.                           |
+| `lab-bastion`                                     | 2    | 2 GB | Tools only, no cluster.                           |
 | stage and prod clusters (planned)                 | 2–4  | 4 GB | Without CI runners.                               |
 
 Memory is static (dynamic memory is disabled), so a running VM always takes its full amount from the host.
@@ -227,10 +229,11 @@ ansible-playbook site.yml
 
 A VM created by `create-vm.ps1` is ready for this from its first boot: the `ansible` user and its key come from cloud-init.
 
-| Role   | What it declares                                                                                                                                                                                                                                                                                                                 |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `base` | The automation user, its key and `sudo` rule; the hostname; base packages; unattended security upgrades; a `ufw` firewall that denies incoming traffic by default and allows only SSH.                                                                                                                                           |
-| `k3s`  | The Kubernetes prerequisites (swap off, the kernel modules and parameters, `ufw` rules for the Kubernetes API and the pod and service networks); k3s at a pinned version (`k3s_version` in the role defaults), its config file, and the kubeconfig copied to the control node as `~/.kube/<host>.yaml`, pointing to the VM's IP. |
+| Role      | What it declares                                                                                                                                                                                                                                                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base`    | The automation user, its key and `sudo` rule; the hostname; base packages; unattended security upgrades; a `ufw` firewall that denies incoming traffic by default and allows only SSH.                                                                                                                                              |
+| `k3s`     | The Kubernetes prerequisites (swap off, the kernel modules and parameters, `ufw` rules for the Kubernetes API and the pod and service networks); k3s at a pinned version (`k3s_version` in `group_vars/all.yml`), its config file, and the kubeconfig copied to the control node as `~/.kube/<host>.yaml`, pointing to the VM's IP. |
+| `bastion` | The operator user (`bastion_user`, without `sudo`) and its key; `kubectl` from the official `pkgs.k8s.io` repository, in the cluster's minor version; the cluster's kubeconfig in the operator's `~/.kube/config`.                                                                                                                  |
 
 Ubuntu 26.04 ships `sudo-rs` as `sudo`, and Ansible times out waiting for its prompt. `ansible.cfg` sets `become_exe = sudo.ws` to use the classic `sudo` until Ansible supports `sudo-rs`.
 
@@ -241,6 +244,18 @@ export KUBECONFIG=~/.kube/lab-vm.yaml
 kubectl get nodes
 ```
 
+### Operating the cluster from the bastion
+
+People operate the cluster from the bastion, with the operator account (`ops`, `bastion_user` in `group_vars/bastions.yml`) and a personal key. The automation user is only for Ansible.
+
+```bash
+ssh -i ~/.ssh/id_ed25519 ops@192.168.100.5 kubectl get nodes
+```
+
+- The bastion copies the kubeconfig from the first host in `k3s_servers`, so build the cluster first.
+- Rebuilding the cluster creates new credentials: refresh the bastion's copy with `ansible-playbook site.yml --limit bastions`.
+- That kubeconfig is the cluster's admin credential: it stays on the bastion with mode `0600` and is never committed. Per-user access with RBAC comes later.
+
 ## Rebuilding a VM and its cluster
 
 One command, from an elevated Windows PowerShell:
@@ -248,6 +263,8 @@ One command, from an elevated Windows PowerShell:
 ```powershell
 powershell -ExecutionPolicy Bypass -File \\wsl.localhost\Ubuntu\home\<user>\lab\lab-infra\hyperv\rebuild-vm.ps1 -Name lab-vm
 ```
+
+The same command builds the bastion with `-Name lab-bastion`: its IP and its smaller size come from `hosts.yml`.
 
 | Parameter | Default  | Description                              |
 | --------- | -------- | ---------------------------------------- |
