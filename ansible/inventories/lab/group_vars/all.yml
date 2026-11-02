@@ -3,3 +3,6 @@ automation_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGGdYuvJ+pfp5iMuoHpc
 # VM size read by hyperv/rebuild-vm.ps1. Override per host in hosts.yml.
 vm_cpus: 4
 vm_memory_gb: 8
+
+# k3s version of the cluster nodes. The bastion's kubectl follows its minor version.
+k3s_version: v1.36.5+k3s1
