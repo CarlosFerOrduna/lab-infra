@@ -1,1 +1,5 @@
 automation_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGGdYuvJ+pfp5iMuoHpcb0iKUIaiqgjo7HCbbmWOXio6 ansible@lab"
+
+# VM size read by hyperv/rebuild-vm.ps1. Override per host in hosts.yml.
+vm_cpus: 4
+vm_memory_gb: 8
