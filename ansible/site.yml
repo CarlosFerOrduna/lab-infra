@@ -9,3 +9,9 @@
   become: true
   roles:
       - k3s
+
+- name: Configure the bastion
+  hosts: bastions
+  become: true
+  roles:
+      - bastion

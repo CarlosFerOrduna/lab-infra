@@ -1,0 +1,56 @@
+- name: Create the operator user
+  ansible.builtin.user:
+      name: "{{ bastion_user }}"
+      shell: /bin/bash
+      create_home: true
+  register: bastion_user_account
+
+- name: Authorize the operator key
+  ansible.posix.authorized_key:
+      user: "{{ bastion_user }}"
+      key: "{{ bastion_user_public_key }}"
+      exclusive: true
+
+- name: Install the support for deb822 repositories
+  ansible.builtin.apt:
+      name: python3-debian
+      state: present
+
+- name: Add the Kubernetes package repository for the cluster's minor version
+  ansible.builtin.deb822_repository:
+      name: kubernetes
+      types: deb
+      uris: "https://pkgs.k8s.io/core:/stable:/{{ kubectl_minor }}/deb/"
+      suites: /
+      signed_by: "https://pkgs.k8s.io/core:/stable:/{{ kubectl_minor }}/deb/Release.key"
+  register: kubernetes_repository
+
+- name: Install kubectl
+  ansible.builtin.apt:
+      name: kubectl
+      state: present
+      update_cache: "{{ kubernetes_repository.changed }}"
+
+- name: Read the kubeconfig from the cluster node
+  ansible.builtin.slurp:
+      src: /etc/rancher/k3s/k3s.yaml
+  delegate_to: "{{ bastion_cluster_node }}"
+  register: cluster_kubeconfig
+  no_log: true
+
+- name: Create the operator's kubeconfig directory
+  ansible.builtin.file:
+      path: "{{ bastion_user_account.home }}/.kube"
+      state: directory
+      owner: "{{ bastion_user }}"
+      group: "{{ bastion_user }}"
+      mode: "0700"
+
+- name: Write the operator's kubeconfig
+  ansible.builtin.copy:
+      content: "{{ cluster_kubeconfig.content | b64decode | replace('https://127.0.0.1:6443', 'https://' ~ hostvars[bastion_cluster_node].ansible_host ~ ':6443') }}"
+      dest: "{{ bastion_user_account.home }}/.kube/config"
+      owner: "{{ bastion_user }}"
+      group: "{{ bastion_user }}"
+      mode: "0600"
+  no_log: true
