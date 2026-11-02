@@ -1,0 +1,55 @@
+- name: Turn off swap now
+  ansible.builtin.command: swapoff -a
+  when: ansible_facts['swaptotal_mb'] > 0
+
+- name: Keep swap off after reboots
+  ansible.builtin.replace:
+      path: /etc/fstab
+      regexp: '^([^#].*\sswap\s.*)$'
+      replace: '# \1'
+
+- name: Remove the swap file
+  ansible.builtin.file:
+      path: /swap.img
+      state: absent
+
+- name: Load the kernel modules at boot
+  ansible.builtin.copy:
+      dest: /etc/modules-load.d/kubernetes.conf
+      content: "overlay\nbr_netfilter\n"
+      owner: root
+      group: root
+      mode: "0644"
+
+- name: Load the kernel modules now
+  community.general.modprobe:
+      name: "{{ item }}"
+      state: present
+  loop:
+      - overlay
+      - br_netfilter
+
+- name: Set the kernel parameters for Kubernetes networking
+  ansible.posix.sysctl:
+      name: "{{ item }}"
+      value: "1"
+      sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+      reload: true
+  loop:
+      - net.bridge.bridge-nf-call-iptables
+      - net.bridge.bridge-nf-call-ip6tables
+      - net.ipv4.ip_forward
+
+- name: Allow the Kubernetes API
+  community.general.ufw:
+      rule: allow
+      port: "6443"
+      proto: tcp
+
+- name: Allow traffic from the pod and service networks
+  community.general.ufw:
+      rule: allow
+      src: "{{ item }}"
+  loop:
+      - 10.42.0.0/16
+      - 10.43.0.0/16
