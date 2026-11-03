@@ -31,6 +31,44 @@
       state: present
       update_cache: "{{ kubernetes_repository.changed }}"
 
+- name: Install git, so kubectl can apply Kustomize directories straight from GitHub
+  ansible.builtin.apt:
+      name: git
+      state: present
+
+- name: Create the kubeseal directory for this version
+  ansible.builtin.file:
+      path: "/opt/kubeseal-{{ kubeseal_version }}"
+      state: directory
+      owner: root
+      group: root
+      mode: "0755"
+
+- name: Download kubeseal and check its SHA256
+  ansible.builtin.get_url:
+      url: "https://github.com/bitnami-labs/sealed-secrets/releases/download/v{{ kubeseal_version }}/kubeseal-{{ kubeseal_version }}-linux-amd64.tar.gz"
+      dest: "/opt/kubeseal-{{ kubeseal_version }}/kubeseal.tar.gz"
+      checksum: "sha256:{{ kubeseal_sha256 }}"
+      owner: root
+      group: root
+      mode: "0644"
+
+- name: Extract kubeseal
+  ansible.builtin.unarchive:
+      src: "/opt/kubeseal-{{ kubeseal_version }}/kubeseal.tar.gz"
+      dest: "/opt/kubeseal-{{ kubeseal_version }}"
+      remote_src: true
+      include: [kubeseal]
+      creates: "/opt/kubeseal-{{ kubeseal_version }}/kubeseal"
+      owner: root
+      group: root
+
+- name: Put this kubeseal version on the PATH
+  ansible.builtin.file:
+      src: "/opt/kubeseal-{{ kubeseal_version }}/kubeseal"
+      dest: /usr/local/bin/kubeseal
+      state: link
+
 - name: Read the kubeconfig from the cluster node
   ansible.builtin.slurp:
       src: /etc/rancher/k3s/k3s.yaml
