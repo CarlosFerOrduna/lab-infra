@@ -1,0 +1,16 @@
+# Temporary workaround for https://github.com/containerd/containerd/issues/14485.
+# The profile must be loaded before k3s starts containerd: containerd keeps a profile
+# that is already loaded under this name. /etc/apparmor.d is loaded at boot, before k3s.
+- name: Install the containerd AppArmor profile that allows signals within a container
+  ansible.builtin.copy:
+      src: cri-containerd.apparmor.d
+      dest: /etc/apparmor.d/cri-containerd.apparmor.d
+      owner: root
+      group: root
+      mode: "0644"
+  register: containerd_apparmor_profile
+
+- name: Load the containerd AppArmor profile now
+  ansible.builtin.command: apparmor_parser --replace /etc/apparmor.d/cri-containerd.apparmor.d
+  when: containerd_apparmor_profile.changed
+  changed_when: true

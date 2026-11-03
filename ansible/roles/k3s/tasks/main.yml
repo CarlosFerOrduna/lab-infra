@@ -1,6 +1,9 @@
 - name: Prepare the system for Kubernetes
   ansible.builtin.import_tasks: prerequisites.yml
 
+- name: Let container processes signal each other under AppArmor
+  ansible.builtin.import_tasks: apparmor.yml
+
 - name: Create the k3s config directory
   ansible.builtin.file:
       path: /etc/rancher/k3s
