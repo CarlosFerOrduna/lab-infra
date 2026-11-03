@@ -3,3 +3,8 @@ kubectl_minor: "{{ k3s_version | regex_search('^v[0-9]+[.][0-9]+') }}"
 
 # Cluster node the kubeconfig is copied from.
 bastion_cluster_node: "{{ groups['k3s_servers'] | first }}"
+
+# Same version as the controller in lab-gitops (system/sealed-secrets/base).
+kubeseal_version: 0.41.2
+# From sealed-secrets_<version>_checksums.txt of the release.
+kubeseal_sha256: 666b5db6788ad1dedb56e2d97064e1cc3779aa77bbd6f4b56b62beeb1941ed79

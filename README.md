@@ -229,11 +229,11 @@ ansible-playbook site.yml
 
 A VM created by `create-vm.ps1` is ready for this from its first boot: the `ansible` user and its key come from cloud-init.
 
-| Role      | What it declares                                                                                                                                                                                                                                                                                                                    |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `base`    | The automation user, its key and `sudo` rule; the hostname; base packages; unattended security upgrades; a `ufw` firewall that denies incoming traffic by default and allows only SSH.                                                                                                                                              |
-| `k3s`     | The Kubernetes prerequisites (swap off, the kernel modules and parameters, `ufw` rules for the Kubernetes API and the pod and service networks); k3s at a pinned version (`k3s_version` in `group_vars/all.yml`), its config file, and the kubeconfig copied to the control node as `~/.kube/<host>.yaml`, pointing to the VM's IP. |
-| `bastion` | The operator user (`bastion_user`, without `sudo`) and its key; `kubectl` from the official `pkgs.k8s.io` repository, in the cluster's minor version; the cluster's kubeconfig in the operator's `~/.kube/config`.                                                                                                                  |
+| Role      | What it declares                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base`    | The automation user, its key and `sudo` rule; the hostname; base packages; unattended security upgrades; a `ufw` firewall that denies incoming traffic by default and allows only SSH.                                                                                                                                                                                                                   |
+| `k3s`     | The Kubernetes prerequisites (swap off, the kernel modules and parameters, `ufw` rules for the Kubernetes API and the pod and service networks); k3s at a pinned version (`k3s_version` in `group_vars/all.yml`), its config file, and the kubeconfig copied to the control node as `~/.kube/<host>.yaml`, pointing to the VM's IP.                                                                      |
+| `bastion` | The operator user (`bastion_user`, without `sudo`) and its key; `kubectl` from the official `pkgs.k8s.io` repository, in the cluster's minor version; `kubeseal` at a pinned version, checked by SHA256 (`kubeseal_version`, the same as the controller in lab-gitops); `git`, so `kubectl apply -k` reads lab-gitops straight from GitHub; the cluster's kubeconfig in the operator's `~/.kube/config`. |
 
 Ubuntu 26.04 ships `sudo-rs` as `sudo`, and Ansible times out waiting for its prompt. `ansible.cfg` sets `become_exe = sudo.ws` to use the classic `sudo` until Ansible supports `sudo-rs`.
 
@@ -251,6 +251,7 @@ People operate the cluster from the bastion, with the operator account (`ops`, `
 - The bastion copies the kubeconfig from the first host in `k3s_servers`, so build the cluster first.
 - Rebuilding the cluster creates new credentials: refresh the bastion's copy with `ansible-playbook site.yml --limit bastions`.
 - That kubeconfig is the cluster's admin credential: it stays on the bastion with mode `0600` and is never committed. Per-user access with RBAC comes later.
+- The cluster's desired state is applied from the bastion, straight from a commit of lab-gitops on GitHub (`kubectl apply -k 'https://github.com/CarlosFerOrduna/lab-gitops//<path>?ref=main'`), never from a local copy. ArgoCD takes over later.
 
 ### SSH access
 
